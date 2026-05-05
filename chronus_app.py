@@ -137,11 +137,11 @@ def detectar_vencedor(df, nome_a, nome_b):
     diff = total["Dif(s)"].values[0]
 
     if diff < 0:
-        return f"🏆 {nome_a}"
+        return nome_a
     elif diff > 0:
-        return f"🏆 {nome_b}"
+        return nome_b
     else:
-        return "🤝 Empate"
+        return "Empate"
 
 # =========================================
 # UI
@@ -149,7 +149,7 @@ def detectar_vencedor(df, nome_a, nome_b):
 st.title("🏁 Comparador de Pilotos - Chronus")
 
 url = st.text_input(
-    "Cole o link do evento Chronus",
+    "Cole o link dos resultados referente à Performance Pilotos PDF",
     "https://chronusae.com.br/eventos/1140/file/3869/show"
 )
 
@@ -183,12 +183,13 @@ if url:
 
         st.subheader(f"🏆 Vencedor: {vencedor}")
 
+        # tabela sem índice
         st.dataframe(
-            df[["Especial", "Tempo A", "Diferença", "Tempo B"]],
+            df[["Especial", "Tempo A", "Diferença", "Tempo B"]].reset_index(drop=True),
             use_container_width=True
         )
 
-        # GRÁFICO
+        # gráfico
         df_plot = df[df["Especial"] != "TOTAL"]
 
         fig, ax = plt.subplots()
@@ -199,3 +200,12 @@ if url:
         plt.xticks(rotation=45)
 
         st.pyplot(fig)
+
+        # explicação com ícone
+        st.markdown("""
+### 📊 COMO INTERPRETAR O GRÁFICO
+
+- **Linha subindo → Piloto A perdendo tempo**
+- **Linha descendo → Piloto A ganhando tempo**
+- **Linha plana → tempos equivalentes**
+""")
