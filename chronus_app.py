@@ -8,6 +8,12 @@ import matplotlib.pyplot as plt
 st.set_page_config(layout="wide")
 
 # =========================================
+# STATE INIT
+# =========================================
+if "last_url" not in st.session_state:
+    st.session_state.last_url = None
+
+# =========================================
 # UTIL
 # =========================================
 def limpar_nome(nome):
@@ -153,16 +159,30 @@ url = st.text_input(
     "https://chronusae.com.br/eventos/1140/file/3869/show"
 )
 
+# =========================================
+# DETECTAR ALTERAÇÃO DE LINK
+# =========================================
+if url != st.session_state.last_url:
+    st.session_state.last_url = url
+    st.cache_data.clear()  # limpa cache automaticamente
+    st.session_state.pop("pilotos", None)
+    st.session_state.pop("selecao_a", None)
+    st.session_state.pop("selecao_b", None)
+
+# =========================================
+# CARREGAMENTO
+# =========================================
 if url:
     with st.spinner("Carregando dados..."):
         try:
             pdf_path = baixar_pdf(url)
             pilotos = extrair_dados_pdf(pdf_path)
+            st.session_state.pilotos = pilotos
         except Exception as e:
             st.error(f"Erro: {e}")
             st.stop()
 
-    nomes = list(pilotos.keys())
+    nomes = list(st.session_state.pilotos.keys())
 
     if not nomes:
         st.warning("Nenhum piloto encontrado")
@@ -171,21 +191,24 @@ if url:
     col1, col2 = st.columns(2)
 
     with col1:
-        piloto_a = st.selectbox("Piloto A", nomes)
+        piloto_a = st.selectbox("Piloto A", nomes, key="selecao_a")
 
     with col2:
-        piloto_b = st.selectbox("Piloto B", nomes)
+        piloto_b = st.selectbox("Piloto B", nomes, key="selecao_b")
 
     if piloto_a != piloto_b:
-        df = comparar(pilotos[piloto_a], pilotos[piloto_b])
+        df = comparar(
+            st.session_state.pilotos[piloto_a],
+            st.session_state.pilotos[piloto_b]
+        )
 
         vencedor = detectar_vencedor(df, piloto_a, piloto_b)
 
         st.subheader(f"🏆 Vencedor: {vencedor}")
 
-        # tabela sem índice
         st.dataframe(
-            df[["Especial", "Tempo A", "Diferença", "Tempo B"]].reset_index(drop=True),
+            df[["Especial", "Tempo A", "Diferença", "Tempo B"]]
+            .reset_index(drop=True),
             use_container_width=True
         )
 
@@ -201,7 +224,7 @@ if url:
 
         st.pyplot(fig)
 
-        # explicação com ícone
+        # explicação
         st.markdown("""
 ### 📊 COMO INTERPRETAR O GRÁFICO
 
