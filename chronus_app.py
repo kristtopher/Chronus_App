@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 st.set_page_config(layout="wide")
 
 # =========================================
-# STATE INIT
+# STATE
 # =========================================
-if "last_url" not in st.session_state:
-    st.session_state.last_url = None
+if "pilotos" not in st.session_state:
+    st.session_state.pilotos = None
 
 # =========================================
 # UTIL
@@ -27,13 +27,14 @@ def tempo_para_segundos_hms(t):
         return None
 
 # =========================================
-# DOWNLOAD + CACHE
+# DOWNLOAD
 # =========================================
-@st.cache_data
 def baixar_pdf(url):
     pdf_url = url.replace("/show", "/download")
     r = requests.get(pdf_url)
-    r.raise_for_status()
+
+    if r.status_code != 200:
+        raise Exception("Link inválido ou indisponível")
 
     with open("resultado.pdf", "wb") as f:
         f.write(r.content)
@@ -43,7 +44,6 @@ def baixar_pdf(url):
 # =========================================
 # EXTRAÇÃO
 # =========================================
-@st.cache_data
 def extrair_dados_pdf(pdf_path):
     pilotos = {}
 
@@ -132,13 +132,28 @@ def comparar(df1, df2):
     return merged
 
 # =========================================
+# ESTILO (CORES)
+# =========================================
+def estilizar(df):
+    def cor(val):
+        try:
+            v = float(val.replace("s", ""))
+            if v < 0:
+                return "color: green; font-weight: bold"
+            elif v > 0:
+                return "color: red; font-weight: bold"
+        except:
+            return ""
+    return df.style.map(cor, subset=["Diferença"])
+
+# =========================================
 # VENCEDOR
 # =========================================
 def detectar_vencedor(df, nome_a, nome_b):
     total = df[df["Especial"] == "TOTAL"]
 
     if total.empty:
-        return "Não foi possível determinar"
+        return "Não definido"
 
     diff = total["Dif(s)"].values[0]
 
@@ -155,77 +170,86 @@ def detectar_vencedor(df, nome_a, nome_b):
 st.title("🏁 Comparador de Pilotos - Chronus")
 
 url = st.text_input(
-    "Cole o link dos resultados referente à Performance Pilotos PDF",
-    "https://chronusae.com.br/eventos/1140/file/3869/show"
+    "Cole o link dos resultados referente à Performance Pilotos PDF"
 )
 
-# =========================================
-# DETECTAR ALTERAÇÃO DE LINK
-# =========================================
-if url != st.session_state.last_url:
-    st.session_state.last_url = url
-    st.cache_data.clear()  # limpa cache automaticamente
-    st.session_state.pop("pilotos", None)
-    st.session_state.pop("selecao_a", None)
-    st.session_state.pop("selecao_b", None)
-
-# =========================================
-# CARREGAMENTO
-# =========================================
-if url:
-    with st.spinner("Carregando dados..."):
-        try:
+if st.button("🔄 Carregar dados"):
+    try:
+        with st.spinner("Baixando e processando..."):
             pdf_path = baixar_pdf(url)
             pilotos = extrair_dados_pdf(pdf_path)
-            st.session_state.pilotos = pilotos
-        except Exception as e:
-            st.error(f"Erro: {e}")
-            st.stop()
+
+            if not pilotos:
+                st.error("Nenhum piloto encontrado neste arquivo")
+            else:
+                st.session_state.pilotos = pilotos
+                st.success(f"{len(pilotos)} pilotos carregados")
+
+    except Exception as e:
+        st.session_state.pilotos = None
+        st.error(f"Erro ao carregar dados: {e}")
+
+# =========================================
+# SELEÇÃO
+# =========================================
+if st.session_state.pilotos:
 
     nomes = list(st.session_state.pilotos.keys())
-
-    if not nomes:
-        st.warning("Nenhum piloto encontrado")
-        st.stop()
 
     col1, col2 = st.columns(2)
 
     with col1:
-        piloto_a = st.selectbox("Piloto A", nomes, key="selecao_a")
+        piloto_a = st.selectbox(
+            "Piloto A",
+            [""] + nomes,
+            index=0
+        )
 
     with col2:
-        piloto_b = st.selectbox("Piloto B", nomes, key="selecao_b")
-
-    if piloto_a != piloto_b:
-        df = comparar(
-            st.session_state.pilotos[piloto_a],
-            st.session_state.pilotos[piloto_b]
+        piloto_b = st.selectbox(
+            "Piloto B",
+            [""] + nomes,
+            index=0
         )
 
-        vencedor = detectar_vencedor(df, piloto_a, piloto_b)
+    # validações
+    if piloto_a and piloto_b:
 
-        st.subheader(f"🏆 Vencedor: {vencedor}")
+        if piloto_a == piloto_b:
+            st.warning("Não é possível comparar o mesmo piloto")
+        else:
+            df = comparar(
+                st.session_state.pilotos[piloto_a],
+                st.session_state.pilotos[piloto_b]
+            )
 
-        st.dataframe(
-            df[["Especial", "Tempo A", "Diferença", "Tempo B"]]
-            .reset_index(drop=True),
-            use_container_width=True
-        )
+            vencedor = detectar_vencedor(df, piloto_a, piloto_b)
 
-        # gráfico
-        df_plot = df[df["Especial"] != "TOTAL"]
+            st.subheader(f"🏆 Vencedor: {vencedor}")
 
-        fig, ax = plt.subplots()
-        ax.plot(df_plot["Especial"], df_plot["Acumulado"], marker='o')
-        ax.set_title("Ganho/Perda Acumulado")
-        ax.set_xlabel("Especial")
-        ax.set_ylabel("Diferença (s)")
-        plt.xticks(rotation=45)
+            st.dataframe(
+                estilizar(df[[
+                    "Especial",
+                    "Tempo A",
+                    "Diferença",
+                    "Tempo B"
+                ]]).hide(axis="index"),
+                use_container_width=True
+            )
 
-        st.pyplot(fig)
+            # gráfico
+            df_plot = df[df["Especial"] != "TOTAL"]
 
-        # explicação
-        st.markdown("""
+            fig, ax = plt.subplots()
+            ax.plot(df_plot["Especial"], df_plot["Acumulado"], marker='o')
+            ax.set_title("Ganho/Perda Acumulado")
+            ax.set_xlabel("Especial")
+            ax.set_ylabel("Diferença (s)")
+            plt.xticks(rotation=45)
+
+            st.pyplot(fig)
+
+            st.markdown("""
 ### 📊 COMO INTERPRETAR O GRÁFICO
 
 - **Linha subindo → Piloto A perdendo tempo**
