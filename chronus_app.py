@@ -273,8 +273,6 @@ if st.session_state.pilotos:
             plt.grid()
             
             st.pyplot(fig)
-            
-            st.pyplot(fig)
 
             st.markdown("""
 ### 📊 COMO INTERPRETAR O GRÁFICO
