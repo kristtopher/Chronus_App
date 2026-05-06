@@ -238,15 +238,22 @@ if st.session_state.pilotos:
             )
 
             # gráfico
-            df_plot = df[df["Especial"] != "TOTAL"]
-
+            # gráfico (ignorando V1)
+            df_plot = df[
+                (df["Especial"] != "TOTAL") &
+                (~df["Especial"].str.startswith("V1"))
+            ]
+            
             fig, ax = plt.subplots()
             ax.plot(df_plot["Especial"], df_plot["Acumulado"], marker='o')
-            ax.set_title("Ganho/Perda Acumulado")
+            
+            ax.set_title("Ganho/Perda Acumulado (sem V1)")
             ax.set_xlabel("Especial")
             ax.set_ylabel("Diferença (s)")
+            
             plt.xticks(rotation=45)
-
+            plt.grid()
+            
             st.pyplot(fig)
 
             st.markdown("""
