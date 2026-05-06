@@ -238,21 +238,41 @@ if st.session_state.pilotos:
             )
 
             # gráfico
-            # gráfico (ignorando V1)
+            # =========================================
+            # GRÁFICO (ANCORADO EM V2E1)
+            # =========================================
+            
+            # 1. remover TOTAL e V1
             df_plot = df[
                 (df["Especial"] != "TOTAL") &
                 (~df["Especial"].str.startswith("V1"))
-            ]
+            ].copy()
             
+            # 2. ordenar corretamente (garantia)
+            df_plot["ordem"] = df_plot["Especial"].apply(
+                lambda x: tuple(map(int, re.findall(r"\d+", x)))
+            )
+            df_plot = df_plot.sort_values("ordem").drop(columns="ordem")
+            
+            # 3. recalcular acumulado começando do zero (V2E1 como referência)
+            df_plot["Acumulado_corrigido"] = df_plot["Dif(s)"].cumsum()
+            
+            # 4. plot
             fig, ax = plt.subplots()
-            ax.plot(df_plot["Especial"], df_plot["Acumulado"], marker='o')
+            ax.plot(
+                df_plot["Especial"],
+                df_plot["Acumulado_corrigido"],
+                marker='o'
+            )
             
-            ax.set_title("Ganho/Perda Acumulado (sem V1)")
+            ax.set_title("Ganho/Perda Acumulado (a partir de V2E1)")
             ax.set_xlabel("Especial")
-            ax.set_ylabel("Diferença (s)")
+            ax.set_ylabel("Diferença acumulada (s)")
             
             plt.xticks(rotation=45)
             plt.grid()
+            
+            st.pyplot(fig)
             
             st.pyplot(fig)
 
